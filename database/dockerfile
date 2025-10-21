@@ -1,0 +1,48 @@
+FROM postgres:17.2-alpine
+
+ENV POSTGRES_DB=db \
+   POSTGRES_USER=usr \
+   POSTGRES_PASSWORD=pwd
+
+
+
+
+   #FROM   # TODO: Choose a java JRE
+# TODO:  Add the compiled java (aka bytecode, aka .class)
+# TODO: Run the Java with: “java Main” command.
+
+
+#FROM postgres:17.2-alpine
+#ENV POSTGRES_DB=db \
+ #   POSTGRES_USER=usr \
+  #  POSTGRES_PASSWORD=pwd
+#COPY ./init-scripts/ /docker-entrypoint-initdb.d/
+
+# Étape 1 : build
+FROM eclipse-temurin:21-jdk-alpine AS build
+WORKDIR /opt/myapp
+COPY pom.xml .
+COPY src ./src
+RUN apk add --no-cache maven && mvn package -DskipTests
+
+# Étape 2 : run
+FROM eclipse-temurin:21-jre-alpine
+WORKDIR /opt/myapp
+COPY --from=build /opt/myapp/target/*.jar app.jar
+ENTRYPOINT ["java", "-jar", "app.jar"]
+
+# Étape 1 : build (JDK)
+FROM eclipse-temurin:21-jdk-alpine AS build
+WORKDIR /usr/src/app
+COPY Main.java .
+RUN javac Main.java
+
+# Étape 2 : run (JRE)
+FROM eclipse-temurin:21-jre-alpine
+WORKDIR /app
+# On copie le bytecode compilé depuis le stage build
+COPY --from=build /usr/src/app/Main.class .
+ENTRYPOINT ["java", "Main"]
+
+
+
