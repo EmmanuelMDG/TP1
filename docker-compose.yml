@@ -1,0 +1,52 @@
+version: "3.9"
+
+services:
+  database:
+    build: ./database       # ton Dockerfile postgres + scripts d'init
+    environment:
+      POSTGRES_DB: db
+      POSTGRES_USER: usr
+      POSTGRES_PASSWORD: pwd
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks: [app-net]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U usr -d db -h localhost"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  backend:
+    build: ./backend-spring  # Dockerfile multi-stage Java 21
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://database:5432/db
+      SPRING_DATASOURCE_USERNAME: usr
+      SPRING_DATASOURCE_PASSWORD: pwd
+      SERVER_PORT: 8080
+    depends_on:
+      database:
+        condition: service_healthy
+    networks: [app-net]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/actuator/health || curl -sf http://localhost:8080/"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  httpd:
+    build: ./httpd
+    ports:
+      - "80:80"          # seul point d'entrée vers l'hôte
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks: [app-net]
+    restart: unless-stopped
+
+networks:
+  app-net:
+
+volumes:
+  db_data:
